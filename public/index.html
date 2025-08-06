@@ -3,59 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <title>Post Management App</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
+        .container { width: 400px; margin: 50px auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; }
+        form { display: flex; flex-direction: column; }
+        input[type="text"], input[type="password"], input[type="file"] { margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        button { padding: 10px; border: none; background: #28a745; color: white; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #218838; }
+        .posts { width: 80%; margin: 20px auto; }
+        .post { background: #fff; padding: 20px; margin-bottom: 20px; border-radius: 10px; box-shadow: 0 0 5px rgba(0,0,0,0.1); }
+        .post img { max-width: 100%; height: auto; border-radius: 5px; }
+        .post-actions { margin-top: 10px; }
+        .post-actions button { margin-right: 10px; }
+        .hidden { display: none; }
+    </style>
 </head>
 <body>
-    <h1>Register</h1>
-    <form id="registerForm">
-        Username: <input type="text" id="regUsername" required><br>
-        Password: <input type="password" id="regPassword" required><br>
-        <button type="submit">Register</button>
-    </form>
+    <div class="container" id="authContainer">
+        <h1>Register</h1>
+        <form id="registerForm">
+            <input type="text" id="regUsername" placeholder="Username" required>
+            <input type="password" id="regPassword" placeholder="Password" required>
+            <button type="submit">Register</button>
+        </form>
 
-    <h1>Login</h1>
-    <form id="loginForm">
-        Username: <input type="text" id="loginUsername"><br>
-        Password: <input type="password" id="loginPassword"><br>
-        <button type="submit">Login</button>
-    </form>
+        <h1>Login</h1>
+        <form id="loginForm">
+            <input type="text" id="loginUsername" placeholder="Username">
+            <input type="password" id="loginPassword" placeholder="Password">
+            <button type="submit">Login</button>
+        </form>
+    </div>
 
-    <div id="userActions" style="display:none;">
+    <div class="container hidden" id="postContainer">
         <h1>Create Post</h1>
         <form id="postForm">
-            Title: <input type="text" id="title"><br>
-            Content: <input type="text" id="content"><br>
-            Category: <input type="text" id="category"><br>
-            Thumbnail: <input type="file" id="thumbnail"><br>
+            <input type="text" id="title" placeholder="Title">
+            <input type="text" id="content" placeholder="Content">
+            <input type="text" id="category" placeholder="Category">
+            <input type="file" id="thumbnail">
             <button type="submit">Create Post</button>
         </form>
     </div>
 
-    <h1>Posts</h1>
-    <div id="postList"></div>
+    <div class="posts" id="postList"></div>
 
     <script>
         let token = "";
         let currentUserId = "";
 
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const username = document.getElementById('regUsername').value;
-    const password = document.getElementById('regPassword').value;
-    const res = await fetch('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-    });
-
-    const data = await res.json();
-
-    if (res.ok) {
-        alert(data.message);  // Register successful!
-    } else {
-        alert(`Error: ${data.message}`);  // Hiển thị lỗi (ví dụ: Username already exists)
-    }
-});
-
+            e.preventDefault();
+            const username = document.getElementById('regUsername').value;
+            const password = document.getElementById('regPassword').value;
+            const res = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            alert(data.message);
+        });
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -67,11 +76,15 @@
                 body: JSON.stringify({ username, password })
             });
             const data = await res.json();
-            token = data.token;
-            currentUserId = parseJwt(token).id;
-            document.getElementById('userActions').style.display = 'block';
-            alert('Logged in');
-            loadPosts();
+            if (res.ok) {
+                token = data.token;
+                currentUserId = parseJwt(token).id;
+                document.getElementById('authContainer').classList.add('hidden');
+                document.getElementById('postContainer').classList.remove('hidden');
+                loadPosts();
+            } else {
+                alert(data.message);
+            }
         });
 
         document.getElementById('postForm').addEventListener('submit', async (e) => {
@@ -88,7 +101,8 @@
                 body: formData
             });
 
-            alert(await res.text());
+            const data = await res.text();
+            alert(data);
             loadPosts();
         });
 
@@ -99,21 +113,18 @@
             postList.innerHTML = '';
             posts.forEach(post => {
                 const div = document.createElement('div');
-                div.innerHTML = `<h3>${post.title}</h3><p>${post.content}</p><img src="${post.thumbnail}" width="200">`;
-
-                // Nếu bài viết của chính mình thì show Edit/Delete
-                if (post.author && post.author._id === currentUserId) {
-                    const editBtn = document.createElement('button');
-                    editBtn.textContent = 'Edit';
-                    editBtn.onclick = () => editPost(post._id);
-                    div.appendChild(editBtn);
-
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.textContent = 'Delete';
-                    deleteBtn.onclick = () => deletePost(post._id);
-                    div.appendChild(deleteBtn);
-                }
-
+                div.className = 'post';
+                div.innerHTML = `
+                    <h3>${post.title}</h3>
+                    <p>${post.content}</p>
+                    <img src="${post.thumbnail}" alt="Thumbnail">
+                    <div class="post-actions">
+                        ${post.author && post.author._id === currentUserId ? `
+                            <button onclick="editPost('${post._id}')">Edit</button>
+                            <button onclick="deletePost('${post._id}')">Delete</button>
+                        ` : ''}
+                    </div>
+                `;
                 postList.appendChild(div);
             });
         }
@@ -150,9 +161,9 @@
             }).join(''));
             return JSON.parse(jsonPayload);
         }
-
-        loadPosts();
     </script>
 </body>
 </html>
+
+
 
