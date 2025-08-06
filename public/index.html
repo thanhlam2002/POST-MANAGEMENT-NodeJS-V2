@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Post Management App</title>
+</head>
+<body>
+    <h1>Register</h1>
+    <form id="registerForm">
+        Username: <input type="text" id="regUsername" required><br>
+        Password: <input type="password" id="regPassword" required><br>
+        <button type="submit">Register</button>
+    </form>
+
+    <h1>Login</h1>
+    <form id="loginForm">
+        Username: <input type="text" id="loginUsername"><br>
+        Password: <input type="password" id="loginPassword"><br>
+        <button type="submit">Login</button>
+    </form>
+
+    <div id="userActions" style="display:none;">
+        <h1>Create Post</h1>
+        <form id="postForm">
+            Title: <input type="text" id="title"><br>
+            Content: <input type="text" id="content"><br>
+            Category: <input type="text" id="category"><br>
+            Thumbnail: <input type="file" id="thumbnail"><br>
+            <button type="submit">Create Post</button>
+        </form>
+    </div>
+
+    <h1>Posts</h1>
+    <div id="postList"></div>
+
+    <script>
+        let token = "";
+        let currentUserId = "";
+
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('regUsername').value;
+    const password = document.getElementById('regPassword').value;
+    const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+        alert(data.message);  // Register successful!
+    } else {
+        alert(`Error: ${data.message}`);  // Hiển thị lỗi (ví dụ: Username already exists)
+    }
+});
+
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            token = data.token;
+            currentUserId = parseJwt(token).id;
+            document.getElementById('userActions').style.display = 'block';
+            alert('Logged in');
+            loadPosts();
+        });
+
+        document.getElementById('postForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('title', document.getElementById('title').value);
+            formData.append('content', document.getElementById('content').value);
+            formData.append('category', document.getElementById('category').value);
+            formData.append('thumbnail', document.getElementById('thumbnail').files[0]);
+
+            const res = await fetch('/api/posts', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+
+            alert(await res.text());
+            loadPosts();
+        });
+
+        async function loadPosts() {
+            const res = await fetch('/api/posts');
+            const posts = await res.json();
+            const postList = document.getElementById('postList');
+            postList.innerHTML = '';
+            posts.forEach(post => {
+                const div = document.createElement('div');
+                div.innerHTML = `<h3>${post.title}</h3><p>${post.content}</p><img src="${post.thumbnail}" width="200">`;
+
+                // Nếu bài viết của chính mình thì show Edit/Delete
+                if (post.author && post.author._id === currentUserId) {
+                    const editBtn = document.createElement('button');
+                    editBtn.textContent = 'Edit';
+                    editBtn.onclick = () => editPost(post._id);
+                    div.appendChild(editBtn);
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = 'Delete';
+                    deleteBtn.onclick = () => deletePost(post._id);
+                    div.appendChild(deleteBtn);
+                }
+
+                postList.appendChild(div);
+            });
+        }
+
+        async function editPost(postId) {
+            const newTitle = prompt('New title:');
+            const newContent = prompt('New content:');
+            const res = await fetch(`/api/posts/${postId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ title: newTitle, content: newContent })
+            });
+            alert(await res.text());
+            loadPosts();
+        }
+
+        async function deletePost(postId) {
+            const res = await fetch(`/api/posts/${postId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            alert(await res.text());
+            loadPosts();
+        }
+
+        function parseJwt(token) {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload);
+        }
+
+        loadPosts();
+    </script>
+</body>
+</html>
+
